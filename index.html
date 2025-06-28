@@ -2,41 +2,43 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Web CLI Terminal</title>
+  <title>Browser CLI</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     body {
-      background: #000;
-      color: #0f0;
+      background-color: black;
+      color: #00ff00;
       font-family: monospace;
+      padding: 10px;
       margin: 0;
-      padding: 1rem;
-      overflow-x: hidden;
     }
+
     #terminal {
       white-space: pre-wrap;
-      min-height: 90vh;
+      word-break: break-word;
     }
-    #cliInput {
-      width: 100%;
-      background: #000;
-      color: #0f0;
+
+    #input-line {
+      display: inline;
+    }
+
+    #cmdline {
+      background: none;
+      color: inherit;
       border: none;
-      font-family: monospace;
-      font-size: 1rem;
       outline: none;
+      font: inherit;
+      width: 80%;
     }
   </style>
 </head>
 <body>
-  <div id="terminal"></div>
-  <input type="text" id="cliInput" autocomplete="off" spellcheck="false" />
+  <div id="terminal">
+    <div id="output"></div>
+    <div id="input-line"><span id="prompt">/ $ </span><input id="cmdline" autofocus /></div>
+  </div>
 
   <script>
-    const { body } = document;
-    const terminal = document.getElementById("terminal");
-    const cliInput = document.getElementById("cliInput");
-
     class File {
       constructor(name, content = "") {
         this.name = name;
@@ -57,51 +59,64 @@
     let cwd = fs;
     let pathStack = ["/"];
 
+    const output = document.getElementById("output");
+    const cmdline = document.getElementById("cmdline");
+    const prompt = document.getElementById("prompt");
+
     function getPath() {
       return "/" + pathStack.slice(1).join("/");
     }
 
-    function prompt() {
-      terminal.innerHTML += `\n${getPath()} $ `;
-      cliInput.value = "";
-      cliInput.focus();
-      scrollToBottom();
+    function writeOutput(text) {
+      output.innerHTML += text + "\n";
     }
 
-    function print(text) {
-      terminal.innerHTML += text + "\n";
+    function renderPrompt() {
+      prompt.textContent = getPath() + " $ ";
+      cmdline.value = "";
+      cmdline.focus();
     }
 
-    function updateTerminal(command) {
-      terminal.innerHTML += `${command}\n`;
+    function scrollToBottom() {
+      window.scrollTo(0, document.body.scrollHeight);
     }
 
     function listDir(dir) {
       return Object.keys(dir.children).join("  ");
     }
 
+    function buildDirFromJSON(json) {
+      if (json.type === "file") return new File(json.name, json.content);
+      const dir = new Directory(json.name);
+      for (const key in json.children) {
+        dir.children[key] = buildDirFromJSON(json.children[key]);
+        dir.children[key].parent = dir;
+      }
+      return dir;
+    }
+
     function runCommand(input) {
       const [cmd, ...args] = input.trim().split(/\s+/);
       switch (cmd) {
         case "mkdir":
-          if (!args[0]) return print("Usage: mkdir <dirname>");
-          if (cwd.children[args[0]]) return print("Directory already exists");
+          if (!args[0]) return writeOutput("Usage: mkdir <dirname>");
+          if (cwd.children[args[0]]) return writeOutput("Directory already exists");
           const newDir = new Directory(args[0]);
           newDir.parent = cwd;
           cwd.children[args[0]] = newDir;
           break;
 
         case "touch":
-          if (!args[0]) return print("Usage: touch <filename>");
+          if (!args[0]) return writeOutput("Usage: touch <filename>");
           cwd.children[args[0]] = new File(args[0]);
           break;
 
         case "ls":
-          print(listDir(cwd));
+          writeOutput(listDir(cwd));
           break;
 
         case "cd":
-          if (!args[0]) return print("Usage: cd <dirname>");
+          if (!args[0]) return writeOutput("Usage: cd <dirname>");
           if (args[0] === "/") {
             cwd = fs;
             pathStack = ["/"];
@@ -112,39 +127,39 @@
             }
           } else {
             const target = cwd.children[args[0]];
-            if (!target || target.type !== "dir") return print("No such directory");
+            if (!target || target.type !== "dir") return writeOutput("No such directory");
             cwd = target;
             pathStack.push(args[0]);
           }
           break;
 
         case "rmdir":
-          if (!args[0]) return print("Usage: rmdir <dirname>");
+          if (!args[0]) return writeOutput("Usage: rmdir <dirname>");
           const dirToRemove = cwd.children[args[0]];
-          if (!dirToRemove || dirToRemove.type !== "dir") return print("No such directory");
-          if (Object.keys(dirToRemove.children).length > 0) return print("Directory not empty");
+          if (!dirToRemove || dirToRemove.type !== "dir") return writeOutput("No such directory");
+          if (Object.keys(dirToRemove.children).length > 0) return writeOutput("Directory not empty");
           delete cwd.children[args[0]];
           break;
 
         case "rm":
-          if (!args[0]) return print("Usage: rm <filename>");
+          if (!args[0]) return writeOutput("Usage: rm <filename>");
           const fileToRemove = cwd.children[args[0]];
-          if (!fileToRemove || fileToRemove.type !== "file") return print("No such file");
+          if (!fileToRemove || fileToRemove.type !== "file") return writeOutput("No such file");
           delete cwd.children[args[0]];
           break;
 
         case "mv":
-          if (args.length < 2) return print("Usage: mv <source> <target>");
-          if (!cwd.children[args[0]]) return print("No such file or directory");
+          if (args.length < 2) return writeOutput("Usage: mv <source> <target>");
+          if (!cwd.children[args[0]]) return writeOutput("No such file or directory");
           cwd.children[args[1]] = cwd.children[args[0]];
           cwd.children[args[1]].name = args[1];
           delete cwd.children[args[0]];
           break;
 
         case "cp":
-          if (args.length < 2) return print("Usage: cp <source> <target>");
+          if (args.length < 2) return writeOutput("Usage: cp <source> <target>");
           const source = cwd.children[args[0]];
-          if (!source) return print("No such file or directory");
+          if (!source) return writeOutput("No such file or directory");
           if (source.type === "file") {
             cwd.children[args[1]] = new File(args[1], source.content);
           } else {
@@ -156,47 +171,31 @@
           break;
 
         case "curl":
-          if (!args[0]) return print("Usage: curl <url>");
-          print(`Fetching from ${args[0]}...\n{\n  "data": "This is dummy JSON from ${args[0]}"\n}`);
+          if (!args[0]) return writeOutput("Usage: curl <url>");
+          writeOutput(`Fetching from ${args[0]}...\n{\n  "data": "This is dummy JSON from ${args[0]}"\n}`);
           break;
 
         case "":
           break;
 
         default:
-          print("Command not recognized");
+          writeOutput("Command not recognized");
       }
     }
 
-    function buildDirFromJSON(json) {
-      if (json.type === "file") {
-        return new File(json.name, json.content);
-      } else {
-        const dir = new Directory(json.name);
-        for (const key in json.children) {
-          dir.children[key] = buildDirFromJSON(json.children[key]);
-          dir.children[key].parent = dir;
-        }
-        return dir;
-      }
-    }
-
-    function scrollToBottom() {
-      window.scrollTo(0, document.body.scrollHeight);
-    }
-
-    cliInput.addEventListener("keydown", (e) => {
+    cmdline.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
-        const input = cliInput.value;
-        updateTerminal(`${getPath()} $ ${input}`);
+        const input = cmdline.value;
+        writeOutput(getPath() + " $ " + input);
         runCommand(input);
-        prompt();
+        renderPrompt();
+        scrollToBottom();
       }
     });
 
-    window.addEventListener("click", () => cliInput.focus());
+    window.addEventListener("click", () => cmdline.focus());
 
-    prompt();
+    renderPrompt();
   </script>
 </body>
 </html>
