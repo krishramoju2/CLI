@@ -2,33 +2,37 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Web CLI</title>
+  <title>Web CLI Terminal</title>
   <style>
     body {
-      background: #111;
+      background: #000;
       color: #0f0;
       font-family: monospace;
-      padding: 20px;
+      margin: 0;
+      padding: 1rem;
+      overflow-x: hidden;
     }
     #terminal {
       white-space: pre-wrap;
-      min-height: 300px;
+      min-height: 90vh;
     }
-    input {
-      background: #111;
+    #cliInput {
+      width: 100%;
+      background: #000;
       color: #0f0;
       border: none;
       font-family: monospace;
-      width: 100%;
+      font-size: 1rem;
       outline: none;
     }
   </style>
 </head>
 <body>
   <div id="terminal"></div>
-  <input type="text" id="cliInput" autofocus />
+  <input type="text" id="cliInput" autocomplete="off" spellcheck="false" />
 
   <script>
+    const { body } = document;
     const terminal = document.getElementById("terminal");
     const cliInput = document.getElementById("cliInput");
 
@@ -52,34 +56,15 @@
     let cwd = fs;
     let pathStack = ["/"];
 
-    function getPath(dir) {
+    function getPath() {
       return "/" + pathStack.slice(1).join("/");
     }
 
-    function resolvePath(path) {
-      const parts = path.split("/").filter(Boolean);
-      let node = path.startsWith("/") ? fs : cwd;
-
-      for (const part of parts) {
-        if (part === "..") {
-          node = node.parent || fs;
-        } else if (part === ".") {
-          continue;
-        } else {
-          node = node.children[part];
-          if (!node || node.type !== "dir") return null;
-        }
-      }
-      return node;
-    }
-
-    function listDir(dir) {
-      return Object.keys(dir.children).join("  ");
-    }
-
     function prompt() {
-      terminal.innerHTML += `\n${getPath(cwd)} $ `;
+      terminal.innerHTML += `\n${getPath()} $ `;
       cliInput.value = "";
+      cliInput.focus();
+      scrollToBottom();
     }
 
     function print(text) {
@@ -88,6 +73,10 @@
 
     function updateTerminal(command) {
       terminal.innerHTML += `${command}\n`;
+    }
+
+    function listDir(dir) {
+      return Object.keys(dir.children).join("  ");
     }
 
     function runCommand(input) {
@@ -191,16 +180,23 @@
       }
     }
 
+    function scrollToBottom() {
+      window.scrollTo(0, document.body.scrollHeight);
+    }
+
     cliInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         const input = cliInput.value;
-        updateTerminal(`${getPath(cwd)} $ ${input}`);
+        updateTerminal(`${getPath()} $ ${input}`);
         runCommand(input);
         prompt();
-        window.scrollTo(0, document.body.scrollHeight);
       }
     });
 
+    // Refocus input if user clicks away
+    window.addEventListener("click", () => cliInput.focus());
+
+    // Initial prompt
     prompt();
   </script>
 </body>
